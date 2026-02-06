@@ -1,3 +1,71 @@
+![BOOKOO Hydration Preview](preview.jpeg)
+
+# 💧 BOOKOO Hydration
+
+**BOOKOO Hydration** is a high-aesthetic smart hydration monitoring system. It connects to your digital scale via Bluetooth to automatically recognize your drinking behavior, record daily intake, and generate health trend charts.
+
+No manual recording is required—simply pick up the cup, drink, and place it back to automatically log the data.
+
+---
+
+## ✨ Key Features
+
+*   **Smart Sensing**: Automatically distinguishes between "drinking", "refilling", and "accidental touch" actions.
+*   **Ghost UI**: When the cup is lifted, the value remains unchanged (grayed out) to provide visual continuity; the difference is automatically calculated and settled when placed back.
+*   **Data Visualization**:
+    *   **Daily Dashboard**: Real-time display of milliliters (mL) and goal progress bar.
+    *   **Weekly Trends**: Automatic bar chart statistics of hydration achievements over the past 7 days.
+    *   **History Timeline**: Detailed record of the time and amount of each water intake.
+*   **Data Persistence**: Records are saved in the browser's local storage, ensuring no data loss upon page refresh or computer restart.
+*   **Multi-language Support**: One-click toggle between Chinese (zh) and English (en).
+*   **Cross-Platform Adaptation**: Uses a responsive layout, perfectly supporting both large desktop screens and mobile devices.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Environment Preparation
+Ensure your computer has Python 3.7+ installed. Open a terminal and install the necessary dependency libraries:
+```bash
+pip install fastapi uvicorn bleak
+```
+
+### 2. Start Service
+Run the backend bridge program in the project directory:
+```bash
+python server_bridge.py
+```
+
+The service is ready when the terminal displays `Uvicorn running on http://0.0.0.0:8000` and prompts `✅ Bluetooth Connected`.
+
+### 3. Open Application
+*   **Desktop**: Directly double-click to open the `BOOKOO_hydration.html` file.
+*   **Mobile (Recommended)**:
+    *   Ensure your phone and computer are connected to the same Wi-Fi network.
+    *   Open a new terminal in the project directory and run the following command to host the files:
+        ```bash
+        python -m http.server 8080
+        ```
+    *   Visit on your mobile browser: `http://<Computer-LAN-IP>:8080/BOOKOO_hydration.html`.
+
+### ⚙️ User Guide (First Time Calibration)
+To ensure data accuracy, please click the ⚙️ icon in the top right corner to enter the settings panel for initial calibration:
+*   **HW Tare**: Remove all items from the scale and click the button to ensure the weight returns to zero.
+*   **Set Empty**: Place your empty cup on the scale and click `∅ Empty`.
+*   **Set Full**: Fill the cup with water, place it on the scale, and click `💧 Full` (used to calculate water level percentage).
+*   **Set Goal**: Input your planned daily total water intake (default is 2000mL).
+
+### 🛠️ Common Operations
+*   **Pause Recording**: Click `⏸ Pause` in settings. You can now use the scale for other weighing tasks without interfering with the hydration logic.
+*   **Undo**: If a misrecord occurs, click `↺ Undo Last` in settings to delete the most recent record and revert progress.
+*   **Clear Data**: Click `Clear All` to reset all local historical records.
+
+### 📱 Full Screen Experience on Mobile
+In the iOS Safari browser, tap the **Share button -> Add to Home Screen** at the bottom to get a native app-like full-screen immersive experience.
+
+---
+---
+
 # 💧 BOOKOO Hydration
 
 **BOOKOO Hydration** 是一款高颜值的智能饮水监测系统。它通过蓝牙连接你的电子秤，自动识别你的喝水行为，记录每日摄入量，并生成健康趋势图表。
