@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BOOKOO Hydration</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💧</text></svg>">
+
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/180/water-glass.png">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="BOOKOO 饮水">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* --- 全局与基础布局 --- */
+        body { 
+            background-color: #f8fafc; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            color: #334155; 
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            /* 关键：使用固定高度而非 min-h-screen，防止移动端浏览器地址栏引起跳动 */
+            height: 100vh; 
+            overflow: hidden; /* 禁止 body 滚动，内容在 app-container 内滚动 */
+        }
+        
+        #app-container {
+            width: 100%;
+            max-width: 1024px; /* 限制最大宽度 */
+            padding: 20px;
+            padding-bottom: 30px; /* 底部留白 */
+            display: flex;
+            flex-direction: column;
+            height: 100%; /* 占满 body 高度 */
+            overflow-y: auto; /* 允许内部滚动 */
+            -webkit-overflow-scrolling: touch; /* iOS顺滑滚动 */
+        }
+
+        /* --- 主网格布局 (核心) --- */
+        #main-grid {
+            display: grid;
+            grid-template-rows: auto 1fr; /* 第一排自适应，第二排占满剩余空间 */
+            gap: 20px;
+            flex: 1; /* 占满垂直剩余空间 */
+            min-height: 0; /* 关键：允许 flex 子项内部滚动 */
+        }
+
+        .top-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* 并排 */
+            gap: 20px;
+        }
+
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* 并排，高度由父级grid决定 */
+            gap: 20px;
+            min-height: 0; /* 关键 */
+        }
+
+        /* --- 响应式适配 (窄屏/手机) --- */
+        @media (max-width: 768px) {
+            #app-container {
+                padding: 16px;
+                padding-bottom: 24px;
+            }
+            #main-grid {
+                grid-template-rows: auto auto auto; /* 变为三行结构 */
+                gap: 16px;
+                display: flex; /* 改为 flex 以便更好控制滚动 */
+                flex-direction: column;
+            }
+            .top-row, .bottom-row {
+                grid-template-columns: 1fr; /* 垂直堆叠 */
+                gap: 16px;
+            }
+            /* 【核心修复】：给窄屏下的底部卡片指定最小高度，防止塌陷 */
+            .bottom-row .card {
+                min-height: 320px; 
+            }
+            /* 调整卡片高度 */
+            .top-row .card { height: 160px; }
+            .label { margin-bottom: 8px; }
+            .text-5xl { font-size: 2.5rem; } /*稍微减小大字体*/
+        }
+
+        /* --- 组件样式 --- */
+        .card { 
+            background: white; 
+            border-radius: 24px; 
+            padding: 24px; 
+            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.03); 
+            border: 1px solid #f1f5f9; 
+            position: relative; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .label { font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; display: block; }
+        .status-capsule { background: white; border: 1px solid #e2e8f0; border-radius: 99px; padding: 4px 12px; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); font-size: 12px; font-weight: 700; color: #64748b; }
+        .status-dot { height: 6px; width: 6px; border-radius: 50%; }
+        .btn { padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; transition: all 0.2s; border: 1px solid #e2e8f0; background: #fff; color: #475569; cursor: pointer; }
+        .btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn:active { transform: scale(0.96); }
+        .btn-input { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; width: 100%; border-radius: 10px; font-weight: bold; color: #475569; outline: none; font-size: 13px; }
+        .progress-track { background: #f1f5f9; border-radius: 999px; height: 14px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.3s; border-radius: 999px; }
+        .ghost-mode #curr-vol, .ghost-mode #cup-unit { color: #cbd5e1 !important; transition: color 0.3s; }
+        .ghost-mode #cup-bar { background-color: #cbd5e1 !important; transition: background-color 0.3s; }
+        .feedback-badge { position: absolute; top: 20px; right: 20px; font-size: 15px; font-weight: 900; opacity: 0; transform: translateY(10px) scale(0.9); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; z-index: 10; }
+        .badge-visible { opacity: 1; transform: translateY(0) scale(1); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        /* --- 图表样式 --- */
+        .bar-container { display: flex; align-items: flex-end; justify-content: space-between; flex: 1; padding-bottom: 0px; height: 100%; min-height: 180px; }
+        .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; gap: 6px; }
+        .bar-track { width: 14px; flex: 1; background: #f1f5f9; border-radius: 6px; position: relative; overflow: hidden; }
+        .bar-fill { position: absolute; bottom: 0; left: 0; right: 0; background: #3b82f6; border-radius: 6px; transition: height 0.5s ease; min-height: 0px; }
+        .bar-meta { text-align: center; display: flex; flex-direction: column; gap: 2px; height: 32px; }
+        .bar-val-text { font-size: 10px; font-weight: 800; color: #475569; line-height: 1; }
+        .bar-date { font-size: 9px; font-weight: 600; color: #94a3b8; line-height: 1; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div class="flex justify-between items-center mb-6 px-1 shrink-0">
+        <h1 class="text-2xl font-black flex items-center gap-2 tracking-tight text-slate-800">
+            <span class="text-blue-500">💧</span> <span id="app-title">BOOKOO Hydration</span>
+        </h1>
+        
+        <div class="flex items-center gap-3">
+            <div class="status-capsule">
+                <span id="bat-val">--%</span>
+                <span class="w-[1px] h-3 bg-slate-200"></span>
+                <span id="status-dot" class="status-dot bg-slate-300"></span>
+            </div>
+            <button onclick="toggleSettings()" class="h-8 w-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-blue-500 hover:border-blue-200 transition flex items-center justify-center shadow-sm">⚙️</button>
+        </div>
+    </div>
+
+    <div id="settings-panel" class="card hidden border-blue-100 bg-slate-50/80 mb-6 shrink-0 z-20">
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200/60">
+            <span class="text-xs font-black text-slate-500 uppercase tracking-widest" id="lbl-sys-config">System Config</span>
+            <button onclick="toggleSettings()" class="text-slate-400 hover:text-red-500 font-bold">✕</button>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <span class="label" id="lbl-goal">Daily Goal (mL)</span>
+                <input type="number" id="input-goal" class="btn-input" value="2000" onchange="updateGoal(this.value)">
+            </div>
+            <div>
+                <span class="label" id="lbl-lang">Language</span>
+                <div class="flex gap-1">
+                    <button onclick="setLang('en')" id="btn-en" class="flex-1 btn text-xs px-1">EN</button>
+                    <button onclick="setLang('zh')" id="btn-zh" class="flex-1 btn text-xs px-1">中文</button>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                 <span class="label" id="lbl-control">Control</span>
+                 <button onclick="togglePause()" id="btn-pause" class="btn w-full border-blue-200 text-blue-600 hover:bg-blue-50">⏸ Pause</button>
+            </div>
+            <div>
+                <span class="label" id="lbl-calib">Calibration</span>
+                <div class="flex gap-2">
+                    <button onclick="setEmpty()" class="btn flex-1" id="btn-empty">∅ Empty</button>
+                    <button onclick="setFull()" class="btn flex-1" id="btn-full">💧 Full</button>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2 border-t border-slate-200/60 pt-4">
+            <button onclick="sendTare()" class="btn flex-1 bg-slate-800 text-white border-slate-800" id="btn-tare">HW Tare</button>
+            <button onclick="undoLastRecord()" class="btn flex-1 text-amber-500 border-amber-100 hover:bg-amber-50" id="btn-undo">↺ Undo Last</button>
+            <button onclick="resetHistory()" class="btn flex-1 text-red-500 border-red-100 hover:bg-red-50" id="btn-clear">Clear All</button>
+        </div>
+        <div class="mt-3 text-[10px] text-slate-400 text-center font-mono">
+            Status: <span id="dbg-status" class="text-green-500 font-bold">Running</span> | 
+            Empty: <span id="dbg-empty">0</span>g | Full: <span id="dbg-full">500</span>g
+        </div>
+    </div>
+
+    <div id="main-grid">
+        <div class="top-row">
+            <div class="card bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-blue-200 shadow-xl justify-between h-[200px]">
+                <div id="badge-intake" class="feedback-badge text-blue-600 bg-white px-3 py-1.5 rounded-full shadow-lg">+0 mL</div>
+                <div>
+                    <span class="label text-blue-100 opacity-80" id="lbl-today">Today's Intake</span>
+                    <div class="flex items-baseline gap-1 mt-1">
+                        <span id="daily-total" class="text-5xl font-black tracking-tighter">0</span>
+                        <span class="text-sm font-bold text-blue-100 opacity-80">/ <span id="goal-display">2000</span> mL</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-blue-100 opacity-80 mb-2">
+                        <span id="lbl-progress">Goal Progress</span>
+                        <span id="daily-pct">0%</span>
+                    </div>
+                    <div class="progress-track bg-black/20 h-3">
+                        <div id="daily-bar" class="progress-fill bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="card-current" class="card justify-between h-[200px] transition-colors duration-300">
+                <div id="badge-refill" class="feedback-badge text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">+0 mL</div>
+                <div>
+                    <span class="label" id="lbl-current">Current Water</span>
+                    <div class="flex items-baseline gap-1 mt-2">
+                        <span id="curr-vol" class="text-5xl font-black text-slate-800 tracking-tighter transition-colors">0</span>
+                        <span id="cup-unit" class="text-lg text-slate-400 font-bold transition-colors">mL</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-slate-400 mb-2">
+                        <span id="lbl-level">Water Level</span>
+                        <span id="cup-pct">0%</span>
+                    </div>
+                    <div class="progress-track h-4">
+                        <div id="cup-bar" class="progress-fill bg-sky-400" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-row">
+            <div class="card flex flex-col">
+                <span class="label" id="lbl-trends">Weekly Trends</span>
+                <div class="bar-container" id="chart-container">
+                    </div>
+            </div>
+
+            <div class="card !p-0 flex flex-col">
+                <div class="p-6 pb-2 shrink-0">
+                    <span class="label" id="lbl-timeline">History</span>
+                </div>
+                <div id="history-list" class="flex flex-col gap-3 overflow-y-auto no-scrollbar flex-1 pb-4 px-4 pt-2 min-h-0">
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // === 脚本部分保持不变，直接复制上一版的脚本内容即可 ===
+    // ... (为了篇幅，这里省略了脚本内容，请确保包含完整的 JS 代码) ...
+    const i18n = {
+        en: {
+            title: "BOOKOO Hydration", sys_config: "System Config", goal: "Daily Goal (mL)", lang: "Language",
+            control: "Control", calib: "Calibration", empty: "∅ Empty", full: "💧 Full",
+            pause: "⏸ Pause", resume: "▶ Resume", tare: "HW Tare", undo: "↺ Undo Last", clear: "Clear All",
+            today: "Today's Intake", progress: "Goal Progress", current: "Current Water", level: "Water Level",
+            trends: "Weekly Trends", timeline: "History", status_run: "Running", status_pause: "Paused",
+            confirm_clear: "Delete all history?", today_txt: "Today",
+            weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        },
+        zh: {
+            title: "BOOKOO 饮水", sys_config: "系统设置", goal: "每日目标 (mL)", lang: "语言设置",
+            control: "运行控制", calib: "设备校准", empty: "∅ 设为空杯", full: "💧 设为满杯",
+            pause: "⏸ 暂停记录", resume: "▶ 恢复记录", tare: "硬件去皮", undo: "↺ 撤销上条", clear: "清空所有",
+            today: "今日饮水量", progress: "目标进度", current: "当前水量", level: "杯内水位",
+            trends: "本周趋势", timeline: "历史记录", status_run: "监测中", status_pause: "已暂停",
+            confirm_clear: "确定清空所有记录吗？", today_txt: "今天",
+            weekdays: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        }
+    };
+
+    let currentLang = localStorage.getItem('lang') || 'en';
+    let dailyGoal = parseInt(localStorage.getItem('cfg_goal') || 2000);
+    let emptyWeight = parseFloat(localStorage.getItem('cfg_empty') || 0);
+    let fullWeight = parseFloat(localStorage.getItem('cfg_full') || 500);
+    let isPaused = false;
+
+    const THRESHOLD_ZERO = 5.0;     
+    const THRESHOLD_STABLE = 0.5;   
+    const FRAMES_TO_STABLE = 15;    
+
+    let state = "IDLE"; 
+    let lastStableWeight = 0; 
+    let weightBeforeLift = 0;
+    let stableCounter = 0; 
+    let lastFrameWeight = 0;
+    let hasLifted = false; 
+    let cachedDisplayVol = 0;
+
+    updateLangUI();
+    document.getElementById('input-goal').value = dailyGoal;
+    document.getElementById('goal-display').innerText = dailyGoal;
+    updateDebugInfo();
+    loadHistory(); 
+
+    // 自动获取当前访问的 IP 地址，这样手机也能正确连接到电脑后端
+    const ws = new WebSocket('ws://' + window.location.hostname + ':8000/ws');
+    ws.onopen = () => updateStatus(true);
+    ws.onclose = () => updateStatus(false);
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'real') {
+            const w = data.weight;
+            updateBattery(data.battery);
+            if (!isPaused) runCoreLogic(w);
+            updateUI(w);
+        }
+    };
+
+    function runCoreLogic(w) {
+        if (state === "IDLE") {
+            if (w < THRESHOLD_ZERO) {
+                if (!hasLifted) {
+                    hasLifted = true;
+                    weightBeforeLift = lastStableWeight; 
+                    cachedDisplayVol = Math.max(0, lastStableWeight - emptyWeight);
+                }
+            }
+        }
+        if (Math.abs(w - lastFrameWeight) < THRESHOLD_STABLE) stableCounter++;
+        else stableCounter = 0;
+        lastFrameWeight = w;
+
+        if (stableCounter === FRAMES_TO_STABLE) {
+            const currentStableWeight = w;
+            if (currentStableWeight > THRESHOLD_ZERO) {
+                if (hasLifted) {
+                    const diff = weightBeforeLift - currentStableWeight;
+                    if (diff > 3.0) {
+                        addRecord(diff);
+                        showFeedback('intake', `+${Math.round(diff)} mL`);
+                    } else if (diff < -5.0) {
+                        const added = Math.abs(diff);
+                        showFeedback('refill', `+${Math.round(added)} mL`);
+                    }
+                    lastStableWeight = currentStableWeight;
+                    hasLifted = false;
+                } else {
+                    const diff = currentStableWeight - lastStableWeight;
+                    if (diff > 5.0) {
+                        showFeedback('refill', `+${Math.round(diff)} mL`);
+                        lastStableWeight = currentStableWeight;
+                    } else if (Math.abs(diff) > 2.0) {
+                        lastStableWeight = currentStableWeight;
+                    }
+                }
+            }
+        }
+    }
+
+    function updateUI(w) {
+        const card = document.getElementById('card-current');
+        const volText = document.getElementById('curr-vol');
+        let displayVol = 0;
+        
+        if (hasLifted) {
+            card.classList.add('ghost-mode');
+            displayVol = cachedDisplayVol;
+        } else {
+            card.classList.remove('ghost-mode');
+            let net = Math.max(0, w - emptyWeight);
+            displayVol = net;
+            cachedDisplayVol = net;
+        }
+        volText.innerText = Math.round(displayVol);
+
+        let cap = fullWeight - emptyWeight;
+        if (cap <= 0) cap = 1;
+        let pct = (displayVol / cap) * 100;
+        if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+        document.getElementById('cup-pct').innerText = Math.round(pct) + "%";
+        document.getElementById('cup-bar').style.width = pct + "%";
+    }
+
+    function addRecord(amount) {
+        const val = Math.round(amount);
+        const record = { id: Date.now(), val: val, time: new Date().toISOString() };
+        const history = JSON.parse(localStorage.getItem('history') || '[]');
+        history.unshift(record);
+        localStorage.setItem('history', JSON.stringify(history));
+        loadHistory();
+    }
+
+    function undoLastRecord() {
+        const history = JSON.parse(localStorage.getItem('history') || '[]');
+        if (history.length > 0) {
+            const removed = history.shift();
+            localStorage.setItem('history', JSON.stringify(history));
+            loadHistory();
+        }
+    }
+
+    function loadHistory() {
+        const history = JSON.parse(localStorage.getItem('history') || '[]');
+        renderTimeline(history);
+        renderWeeklyChart(history);
+    }
+
+    function renderTimeline(history) {
+        const list = document.getElementById('history-list');
+        list.innerHTML = '';
+        let todaySum = 0;
+        const todayStr = new Date().toDateString();
+        const t = i18n[currentLang];
+
+        history.slice(0, 50).forEach(rec => {
+            const date = new Date(rec.time);
+            const isToday = date.toDateString() === todayStr;
+            if (isToday) todaySum += rec.val;
+
+            const div = document.createElement('div');
+            div.className = "flex justify-between items-center p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors shrink-0";
+            div.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="text-lg">💧</div>
+                    <div class="text-xs font-bold text-slate-600">${isToday ? t.today_txt : (date.getMonth()+1)+'/'+date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}</div>
+                </div>
+                <span class="text-sm font-black text-slate-700">+${rec.val} <span class="text-[10px] text-slate-400">mL</span></span>
+            `;
+            list.appendChild(div);
+        });
+
+        document.getElementById('daily-total').innerText = todaySum;
+        const pct = Math.min(100, (todaySum / dailyGoal) * 100);
+        document.getElementById('daily-bar').style.width = pct + "%";
+        document.getElementById('daily-pct').innerText = Math.round(pct) + "%";
+    }
+
+    function renderWeeklyChart(history) {
+        const container = document.getElementById('chart-container');
+        container.innerHTML = '';
+        const days = [];
+        const weekNames = i18n[currentLang].weekdays;
+        
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const monthDay = (d.getMonth() + 1) + '/' + d.getDate();
+            const weekDay = weekNames[d.getDay()];
+            const label = `${monthDay}<br>${weekDay}`;
+            days.push({ dateStr: d.toDateString(), sum: 0, label: label });
+        }
+
+        history.forEach(rec => {
+            const recDate = new Date(rec.time).toDateString();
+            const target = days.find(d => d.dateStr === recDate);
+            if (target) target.sum += rec.val;
+        });
+
+        let maxVal = dailyGoal; 
+        days.forEach(d => { if(d.sum > maxVal) maxVal = d.sum; });
+
+        days.forEach(day => {
+            const pct = (day.sum / dailyGoal) * 100;
+            const heightPct = (day.sum / maxVal) * 100;
+            const isMet = pct >= 100;
+            const color = isMet ? '#22c55e' : '#3b82f6';
+            
+            const col = document.createElement('div');
+            col.className = 'bar-col';
+            col.innerHTML = `
+                <div class="bar-track">
+                    <div class="bar-fill" style="height: ${heightPct}%; background: ${color}"></div>
+                </div>
+                <div class="bar-meta">
+                    <div class="bar-val-text">${day.sum} mL</div>
+                    <div class="bar-date">${day.label}</div>
+                </div>
+            `;
+            container.appendChild(col);
+        });
+    }
+
+    let timerIntake, timerRefill;
+    function showFeedback(type, text) {
+        const id = type === 'intake' ? 'badge-intake' : 'badge-refill';
+        const el = document.getElementById(id);
+        el.innerText = text; el.classList.add('badge-visible');
+        const timer = type === 'intake' ? timerIntake : timerRefill;
+        if(timer) clearTimeout(timer);
+        const newTimer = setTimeout(() => { el.classList.remove('badge-visible'); }, 3000);
+        if(type === 'intake') timerIntake = newTimer; else timerRefill = newTimer;
+    }
+
+    function updateBattery(bat) { document.getElementById('bat-val').innerText = (bat || "--") + "%"; }
+    function updateStatus(isOnline) { document.getElementById('status-dot').className = isOnline ? "status-dot bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "status-dot bg-slate-300"; }
+    function updateGoal(val) { dailyGoal = parseInt(val); localStorage.setItem('cfg_goal', dailyGoal); document.getElementById('goal-display').innerText = dailyGoal; loadHistory(); }
+    function sendTare() { if (ws.readyState === 1) ws.send(JSON.stringify({actions: ['TARE']})); }
+    function setEmpty() { emptyWeight = lastFrameWeight; localStorage.setItem('cfg_empty', emptyWeight); lastStableWeight = emptyWeight; updateDebugInfo(); }
+    function setFull() { fullWeight = lastFrameWeight; localStorage.setItem('cfg_full', fullWeight); updateDebugInfo(); }
+    function resetHistory() { if(confirm(i18n[currentLang].confirm_clear)) { localStorage.removeItem('history'); loadHistory(); } }
+    function toggleSettings() { document.getElementById('settings-panel').classList.toggle('hidden'); }
+    function togglePause() { isPaused = !isPaused; updateLangUI(); updateDebugInfo(); }
+    function setLang(lang) { currentLang = lang; localStorage.setItem('lang', lang); updateLangUI(); loadHistory(); }
+
+    function updateLangUI() {
+        const t = i18n[currentLang];
+        document.getElementById('app-title').innerText = t.title;
+        document.getElementById('lbl-sys-config').innerText = t.sys_config;
+        document.getElementById('lbl-goal').innerText = t.goal;
+        document.getElementById('lbl-lang').innerText = t.lang;
+        document.getElementById('lbl-control').innerText = t.control;
+        document.getElementById('lbl-calib').innerText = t.calib;
+        document.getElementById('btn-empty').innerText = t.empty;
+        document.getElementById('btn-full').innerText = t.full;
+        document.getElementById('btn-pause').innerText = isPaused ? t.resume : t.pause;
+        document.getElementById('btn-tare').innerText = t.tare;
+        document.getElementById('btn-undo').innerText = t.undo;
+        document.getElementById('btn-clear').innerText = t.clear;
+        document.getElementById('lbl-today').innerText = t.today;
+        document.getElementById('lbl-progress').innerText = t.progress;
+        document.getElementById('lbl-current').innerText = t.current;
+        document.getElementById('lbl-level').innerText = t.level;
+        document.getElementById('lbl-trends').innerText = t.trends;
+        document.getElementById('lbl-timeline').innerText = t.timeline;
+        
+        if (currentLang === 'en') {
+            document.getElementById('btn-en').classList.add('btn-active');
+            document.getElementById('btn-zh').classList.remove('btn-active');
+        } else {
+            document.getElementById('btn-zh').classList.add('btn-active');
+            document.getElementById('btn-en').classList.remove('btn-active');
+        }
+        updateDebugInfo();
+    }
+
+    function updateDebugInfo() {
+        const t = i18n[currentLang];
+        const statusText = isPaused ? `<span class="text-amber-500 font-bold">${t.status_pause}</span>` : `<span class="text-green-500 font-bold">${t.status_run}</span>`;
+        document.getElementById('dbg-status').innerHTML = statusText;
+        document.getElementById('dbg-empty').innerText = emptyWeight.toFixed(0);
+        document.getElementById('dbg-full').innerText = fullWeight.toFixed(0);
+    }
+</script>
+</body>
+</html>
